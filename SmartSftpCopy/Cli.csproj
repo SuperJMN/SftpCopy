@@ -19,8 +19,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\..\SuperJMN-Zafiro\Zafiro\Source\FileSystem\FileSystem.csproj" />
-		<ProjectReference Include="..\..\SuperJMN-Zafiro\Zafiro\Source\SftpFileSystem\SftpFileSystem.csproj" />
+	  <ProjectReference Include="..\Zafiro\Source\SftpFileSystem\SftpFileSystem.csproj" />
 	</ItemGroup>
 
 </Project>
