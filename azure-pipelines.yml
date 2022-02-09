@@ -25,7 +25,7 @@ steps:
 - task: gitversion/execute@0
 
 - script: |
-    dotnet pack -p:PackageVersion=$(GitVersion.NuGetVersionV2) -OutputDirectory $(Build.ArtifactStagingDirectory)
+    dotnet pack -p:PackageVersion=$(GitVersion.NuGetVersionV2) --output $(Build.ArtifactStagingDirectory)
   displayName: 'Pack'
 
 - task: NuGetCommand@2
