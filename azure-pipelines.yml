@@ -16,6 +16,14 @@ steps:
 - script: echo Hello, world!
   displayName: 'Run a one-line script'
 
+- task: gitversion/setup@0
+  inputs: 
+    versionSpec: '5.x'
+
+- script: echo $(GitVersion.NuGetVersionV2)
+
+- task: gitversion/execute@0
+
 - script: |
-    dotnet pack
+    dotnet pack /p:$(GitVersion.NuGetVersionV2)
   displayName: 'Pack'
