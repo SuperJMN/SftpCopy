@@ -25,5 +25,5 @@ steps:
 - task: gitversion/execute@0
 
 - script: |
-    dotnet pack -p:$(GitVersion.NuGetVersionV2)
+    dotnet pack -p:PackageVersion=$(GitVersion.NuGetVersionV2)
   displayName: 'Pack'
