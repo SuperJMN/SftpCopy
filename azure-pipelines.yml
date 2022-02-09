@@ -9,6 +9,9 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  projectFile: SmartSftpCopy/Cli.csproj
+
 steps:
 - checkout: self
   submodules: true
@@ -25,7 +28,7 @@ steps:
 - task: gitversion/execute@0
 
 - script: |
-    dotnet pack SftpCopy -p:PackageVersion=$(GitVersion.NuGetVersionV2) --output $(Build.ArtifactStagingDirectory)
+    dotnet pack $(ProjectFile) -p:PackageVersion=$(GitVersion.NuGetVersionV2) --output $(Build.ArtifactStagingDirectory)
   displayName: 'Pack'
 
 - task: NuGetCommand@2
