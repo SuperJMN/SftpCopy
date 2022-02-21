@@ -10,7 +10,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  projectFile: SmartSftpCopy/Cli.csproj
+  projectFile: SmartSftp/Cli.csproj
 
 steps:
 - checkout: self
