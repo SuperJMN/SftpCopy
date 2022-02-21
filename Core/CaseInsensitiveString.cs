@@ -1,17 +1,17 @@
-﻿namespace Cli;
+﻿namespace Core;
 
-public class IgnoreCaseString
+public class CaseInsensitiveString
 {
-    public IgnoreCaseString(string value)
+    public CaseInsensitiveString(string value)
     {
         Value = value;
     }
 
     public string Value { get; }
 
-    public static implicit operator IgnoreCaseString(string str)
+    public static implicit operator CaseInsensitiveString(string str)
     {
-        return new IgnoreCaseString(str);
+        return new CaseInsensitiveString(str);
     }
 
     public override bool Equals(object? obj)
@@ -31,7 +31,7 @@ public class IgnoreCaseString
             return false;
         }
 
-        return Equals((IgnoreCaseString) obj);
+        return Equals((CaseInsensitiveString) obj);
     }
 
     public override int GetHashCode()
@@ -39,7 +39,7 @@ public class IgnoreCaseString
         return Value.ToLowerInvariant().GetHashCode();
     }
 
-    protected bool Equals(IgnoreCaseString other)
+    protected bool Equals(CaseInsensitiveString other)
     {
         return string.Equals(Value, other.Value, StringComparison.InvariantCultureIgnoreCase);
     }

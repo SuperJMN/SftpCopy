@@ -4,10 +4,11 @@ using System.Security.Cryptography;
 using System.Text;
 using CSharpFunctionalExtensions;
 using Newtonsoft.Json;
+using CliLogin = Core.Login;
 
-namespace Cli;
+namespace Core;
 
-public class LoginStore
+internal class LoginStore
 {
     private readonly IFileSystem fileSystem;
 
@@ -16,39 +17,39 @@ public class LoginStore
         this.fileSystem = fileSystem;
     }
 
-    public Task<Result> AddOrReplace(string host, string username, string password)
+    public Task<Result> AddOrReplace(CliLogin login)
     {
         return Result.Success()
             .Bind(GetLogins)
-            .Tap(logins => logins[new QualifiedUser(host, username)] = password)
+            .Tap(logins => logins[login.User] = login.Password)
             .Bind(SaveLogins);
     }
 
-    public Task<Result<Credentials>> GetPassword(string host, string username)
+    public Task<Result<MachineCredentials>> GetPassword(Host host, Username username)
     {
         return Result.Success()
             .Bind(GetLogins)
             .Bind(logins =>
             {
-                var tryFind = logins.TryFind(new QualifiedUser(host, username));
-                return tryFind.Select(pwd => new Credentials(username, pwd))
+                var tryFind = logins.TryFind(new MachineUser(host, username));
+                return tryFind.Select(pwd => new MachineCredentials(username, pwd))
                     .ToResult($"Cannot find login for host: {host}, username {username}");
             });
     }
 
-    public Task<Result<Credentials>> GetPassword(string host)
+    public Task<Result<MachineCredentials>> GetPassword(Host host)
     {
         return Result.Success()
             .Bind(GetLogins)
-            .Bind(logins => logins.TryFirst(r => r.Key.Host.Equals(new IgnoreCaseString(host)))
-                .Select(r => new Credentials(r.Key.Username.Value, r.Value))
+            .Bind(logins => logins.TryFirst(r => r.Key.Host.Equals(host))
+                .Select(r => new MachineCredentials(r.Key.Username, r.Value))
                 .ToResult($"Cannot find any login for the host {host}"));
     }
 
-    private static IEnumerable<Login> ToLogins(Dictionary<QualifiedUser, string> logins)
+    private static IEnumerable<Login> ToLogins(Dictionary<MachineUser, string> logins)
     {
         return logins.Select(r =>
-            new Login {Host = r.Key.Host, Username = r.Key.Username, Password = r.Value});
+            new Login {Host = r.Key.Host.Value, Username = r.Key.Username.Value, Password = r.Value});
     }
 
     private static byte[] ToBytes(string serialized)
@@ -74,7 +75,7 @@ public class LoginStore
         return ProtectedData.Unprotect(bytes, null, DataProtectionScope.CurrentUser);
     }
 
-    private Task<Result> SaveLogins(Dictionary<QualifiedUser, string> loginDictionary)
+    private Task<Result> SaveLogins(Dictionary<MachineUser, string> loginDictionary)
     {
         return Result.Try(() =>
             {
@@ -96,11 +97,12 @@ public class LoginStore
         });
     }
 
-    private Task<Result<Dictionary<QualifiedUser, string>>> GetLogins()
+    private Task<Result<Dictionary<MachineUser, string>>> GetLogins()
     {
         return Result.Success()
             .Bind(() => LoadFromFile().OnFailureCompensate(() => Result.Success(new Collection<Login>())))
-            .Map(r => r.ToDictionary(x => new QualifiedUser(x.Host, x.Username), x => x.Password));
+            .Map(r => r.ToDictionary(x => new MachineUser(new Host(x.Host), new Username(x.Username)),
+                x => x.Password));
     }
 
     private Task<Result<Collection<Login>>> LoadFromFile()
@@ -110,58 +112,14 @@ public class LoginStore
             .Ensure(f => f.Exists, "The file doesn't exist")
             .Map(f => f.ReadAllBytes())
             .OnSuccessTry(FromBytes)
-            .Map(s => JsonConvert.DeserializeObject<Collection<Login>>(s))
+            .OnSuccessTry(s => JsonConvert.DeserializeObject<Collection<Login>>(s))
             .Ensure(s => s != null, "Cannot deserialize from string");
     }
 
     private class Login
     {
-        public IgnoreCaseString Host { get; set; }
-        public IgnoreCaseString Username { get; set; }
-        public string Password { get; set; }
-    }
-
-    public class QualifiedUser
-    {
-        public QualifiedUser(IgnoreCaseString Host, IgnoreCaseString Username)
-        {
-            this.Host = Host;
-            this.Username = Username;
-        }
-
-        public IgnoreCaseString Host { get; init; }
-        public IgnoreCaseString Username { get; init; }
-
-        public override bool Equals(object? obj)
-        {
-            if (ReferenceEquals(null, obj))
-            {
-                return false;
-            }
-
-            if (ReferenceEquals(this, obj))
-            {
-                return true;
-            }
-
-            if (obj.GetType() != GetType())
-            {
-                return false;
-            }
-
-            return Equals((QualifiedUser) obj);
-        }
-
-        public override int GetHashCode()
-        {
-            return HashCode.Combine(Host, Username);
-        }
-
-        protected bool Equals(QualifiedUser other)
-        {
-            return Host.Equals(other.Host) && Username.Equals(other.Username);
-        }
+        public string? Host { get; set; }
+        public string? Username { get; set; }
+        public string? Password { get; set; }
     }
 }
-
-public record Credentials(string Username, string Password);
