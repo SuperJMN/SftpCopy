@@ -1,24 +1,29 @@
 ﻿using System.CommandLine;
+using System.Net;
+using Autofac;
+using Autofac.Core;
 using CSharpFunctionalExtensions;
+using FileSystem;
 
 namespace Core;
 
 public class Shell
 {
-    public async Task Execute(string[] args)
+    public static async Task Execute(string[] args)
     {
-        await CreateRootCommand().InvokeAsync(args);
+        var rootCommand = CreateRootCommand();
+        await rootCommand.InvokeAsync(args).ConfigureAwait(false);
     }
 
     private static Command CreateRootCommand()
     {
         var sourceArg = new Argument<string>("source", () => ".");
         var destinationArg = new Argument<string>("destination");
-        var hostOption = new Option<string>("--host", "Hostname") {IsRequired = true};
+        var hostOption = new Option<string>("--host", "Hostname") { IsRequired = true };
         var portOption = new Option<int>("--port", () => 22, "Port");
-        var usernameOption = new Option<string>("--username") {IsRequired = true};
+        var usernameOption = new Option<string>("--username") { IsRequired = true };
         var optionalUsernameOption = new Option<string>("--username");
-        var passwordOption = new Option<string>("--password") {IsRequired = true};
+        var passwordOption = new Option<string>("--password") { IsRequired = true };
 
         var loginCommand = new Command("login")
         {
@@ -40,14 +45,36 @@ public class Shell
             async (string host, string username, string password) =>
             {
                 var qualifiedUser = new MachineUser(new Host(host), new Username(username));
-                await Login(new Login(qualifiedUser, password));
+                var container = CompositionRoot.CreateContainer(new RemoteLoginOptions(Maybe<Username>.From(""), null));
+
+                using (var scope = container.BeginLifetimeScope())
+                {
+                    var loginStore = scope.Resolve<LoginStore>();
+                    var result = await loginStore.AddOrReplace(new Login(qualifiedUser, password)).ConfigureAwait(false);
+                    result.Match(() => Console.WriteLine("Success"), e => Console.Error.WriteLine(e));
+                }
             }, hostOption,
             usernameOption, passwordOption);
 
         copyCommand.SetHandler<string, string, string, int, string>(
             async (source, destination, host, port, usernameString) =>
             {
-                await Copy(usernameString, destination, source, port, host);
+                var dnsEndPoint = new DnsEndPoint(host, port);
+                var username = Maybe<string>.From(usernameString).Map(s => new Username(s));
+                var container = CompositionRoot.CreateContainer(new RemoteLoginOptions(username, dnsEndPoint));
+
+                var parameters = new Parameter[]
+                {
+                    new NamedParameter("source", source),
+                    new NamedParameter("destination", destination),
+                };
+
+                using (var scope = container.BeginLifetimeScope())
+                {
+                    var command = scope.Resolve<CopyCommand>(parameters);
+                    var result = await command.Execute().ConfigureAwait(false);
+                    result.Match(() => Console.WriteLine("Success"), e => Console.Error.WriteLine(e));
+                }
             }, sourceArg, destinationArg, hostOption, portOption, usernameOption);
 
 
@@ -58,32 +85,5 @@ public class Shell
         };
 
         return rootCommand;
-    }
-
-    private static async Task Copy(string usernameString, string destination, string source, int port, string host)
-    {
-        var app = CreateApp();
-        var username = Maybe.From(usernameString);
-
-        await Result.Success()
-            .Bind(() => username.Match(
-                user => app.Copy(destination, source, port, host, user),
-                () => app.Copy(destination, source, port, host)))
-            .Match(() => Console.WriteLine("Copy successful"),
-                s => Console.WriteLine($"Copy failed. Reason: {s}"));
-    }
-
-    private static SftpApplication CreateApp()
-    {
-        return new SftpApplication(new LoginStore(new System.IO.Abstractions.FileSystem()));
-    }
-
-    private static async Task Login(Login login)
-    {
-        var app = new SftpApplication(new LoginStore(new System.IO.Abstractions.FileSystem()));
-        await Result.Success()
-            .Bind(() => app.AddOrReplaceLogin(login))
-            .Match(() => Console.WriteLine("Credentials added/updated successfully"),
-                s => Console.WriteLine($"Could not add/update credentials. Reason: {s}"));
     }
 }
