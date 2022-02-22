@@ -1,8 +1,8 @@
 ﻿using System.Collections.ObjectModel;
-using System.IO.Abstractions;
 using System.Security.Cryptography;
 using System.Text;
 using CSharpFunctionalExtensions;
+using FileSystem;
 using Newtonsoft.Json;
 using CliLogin = Core.Login;
 
@@ -10,11 +10,11 @@ namespace Core;
 
 internal class LoginStore
 {
-    private readonly IFileSystem fileSystem;
+    private readonly IZafiroFile storage;
 
-    public LoginStore(IFileSystem fileSystem)
+    public LoginStore(IZafiroFile storage)
     {
-        this.fileSystem = fileSystem;
+        this.storage = storage;
     }
 
     public Task<Result> AddOrReplace(CliLogin login)
@@ -25,7 +25,7 @@ internal class LoginStore
             .Bind(SaveLogins);
     }
 
-    public Task<Result<MachineCredentials>> GetPassword(Host host, Username username)
+    public Task<Result<MachineCredentials>> GetCredentials(Host host, Username username)
     {
         return Result.Success()
             .Bind(GetLogins)
@@ -33,23 +33,23 @@ internal class LoginStore
             {
                 var tryFind = logins.TryFind(new MachineUser(host, username));
                 return tryFind.Select(pwd => new MachineCredentials(username, pwd))
-                    .ToResult($"Cannot find login for host: {host}, username {username}");
+                    .ToResult($"Cannot find login for host: '{host}', username '{username}'");
             });
     }
 
-    public Task<Result<MachineCredentials>> GetPassword(Host host)
+    public Task<Result<MachineCredentials>> GetCredentials(Host host)
     {
         return Result.Success()
             .Bind(GetLogins)
             .Bind(logins => logins.TryFirst(r => r.Key.Host.Equals(host))
                 .Select(r => new MachineCredentials(r.Key.Username, r.Value))
-                .ToResult($"Cannot find any login for the host {host}"));
+                .ToResult($"Cannot find any login for the host '{host}'"));
     }
 
     private static IEnumerable<Login> ToLogins(Dictionary<MachineUser, string> logins)
     {
         return logins.Select(r =>
-            new Login {Host = r.Key.Host.Value, Username = r.Key.Username.Value, Password = r.Value});
+            new Login {Host = r.Key.Host, Username = r.Key.Username, Password = r.Value});
     }
 
     private static byte[] ToBytes(string serialized)
@@ -91,9 +91,10 @@ internal class LoginStore
     {
         return Result.Try(async () =>
         {
-            var fi = fileSystem.FileInfo.FromFileName("logins.dat");
-            await using var stream = fi.OpenWrite();
-            await stream.WriteAsync(bytes);
+            using (var stream = storage.OpenWrite())
+            {
+                await stream.WriteAsync(bytes).ConfigureAwait(false);
+            }
         });
     }
 
@@ -108,8 +109,7 @@ internal class LoginStore
     private Task<Result<Collection<Login>>> LoadFromFile()
     {
         return Result
-            .Success(fileSystem.FileInfo.FromFileName("logins.dat"))
-            .Ensure(f => f.Exists, "The file doesn't exist")
+            .Success(storage)
             .Map(f => f.ReadAllBytes())
             .OnSuccessTry(FromBytes)
             .OnSuccessTry(s => JsonConvert.DeserializeObject<Collection<Login>>(s))

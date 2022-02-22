@@ -2,7 +2,7 @@
   "profiles": {
     "Cli": {
       "commandName": "Project",
-      "commandLineArgs": "copy . /upload --host localhost"
+      "commandLineArgs": "copy C:\\Users\\JMN\\Documents\\LongoMatch /upload --host localhost"
     }
   }
 }

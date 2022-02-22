@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# ConfigureAwaitEnforcer: ConfigureAwaitEnforcer
+dotnet_diagnostic.ConfigureAwaitEnforcer.severity = suggestion
