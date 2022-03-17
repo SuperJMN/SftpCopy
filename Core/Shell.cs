@@ -12,7 +12,7 @@ public class Shell
     public static async Task Execute(string[] args)
     {
         var rootCommand = CreateRootCommand();
-        await rootCommand.InvokeAsync(args).ConfigureAwait(false);
+        await rootCommand.InvokeAsync(args);
     }
 
     private static Command CreateRootCommand()
@@ -32,7 +32,7 @@ public class Shell
             usernameOption
         };
 
-        var copyCommand = new Command("copy")
+        var copyCommand = new Command("sync")
         {
             sourceArg,
             destinationArg,
@@ -50,7 +50,7 @@ public class Shell
                 using (var scope = container.BeginLifetimeScope())
                 {
                     var loginStore = scope.Resolve<LoginStore>();
-                    var result = await loginStore.AddOrReplace(new Login(qualifiedUser, password)).ConfigureAwait(false);
+                    var result = await loginStore.AddOrReplace(new Login(qualifiedUser, password));
                     result.Match(() => Console.WriteLine("Success"), e => Console.Error.WriteLine(e));
                 }
             }, hostOption,
@@ -72,7 +72,7 @@ public class Shell
                 using (var scope = container.BeginLifetimeScope())
                 {
                     var command = scope.Resolve<CopyCommand>(parameters);
-                    var result = await command.Execute().ConfigureAwait(false);
+                    var result = await command.Execute();
                     result.Match(() => Console.WriteLine("Success"), e => Console.Error.WriteLine(e));
                 }
             }, sourceArg, destinationArg, hostOption, portOption, usernameOption);

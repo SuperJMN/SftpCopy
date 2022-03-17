@@ -6,4 +6,4 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateLogger();
 
-await Shell.Execute(args).ConfigureAwait(false);
+await Shell.Execute(args);

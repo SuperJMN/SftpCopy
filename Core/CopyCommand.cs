@@ -20,14 +20,14 @@ public class CopyCommand
 
     public async Task<Result> Execute()
     {
-        var originSession = await fileSystemRoot.GetFileSystem("local")().ConfigureAwait(false);
-        var destinationSession = await fileSystemRoot.GetFileSystem("remote")().ConfigureAwait(false);
+        var originSession = await fileSystemRoot.GetFileSystem("local")();
+        var destinationSession = await fileSystemRoot.GetFileSystem("remote")();
 
         return await originSession.Using(ss => destinationSession.Using(async ds =>
         {
             var origin = ss.GetDirectory(source);
             var result = ds.GetDirectory(destination);
-            return await copier.Copy(origin, result).ConfigureAwait(false);
+            return await copier.Copy(origin, result);
         }));
     }
 }

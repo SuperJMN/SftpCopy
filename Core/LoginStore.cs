@@ -93,7 +93,7 @@ internal class LoginStore
         {
             using (var stream = storage.OpenWrite())
             {
-                await stream.WriteAsync(bytes).ConfigureAwait(false);
+                await stream.WriteAsync(bytes);
             }
         });
     }
