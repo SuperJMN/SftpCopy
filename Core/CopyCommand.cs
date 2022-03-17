@@ -8,14 +8,14 @@ public class CopyCommand
     private readonly string source;
     private readonly string destination;
     private readonly IFileSystemRoot fileSystemRoot;
-    private readonly ICopier copier;
+    private readonly ISyncer syncer;
 
-    public CopyCommand(string source, string destination, IFileSystemRoot fileSystemRoot, ICopier copier)
+    public CopyCommand(string source, string destination, IFileSystemRoot fileSystemRoot, ISyncer syncer)
     {
         this.source = source;
         this.destination = destination;
         this.fileSystemRoot = fileSystemRoot;
-        this.copier = copier;
+        this.syncer = syncer;
     }
 
     public async Task<Result> Execute()
@@ -27,7 +27,7 @@ public class CopyCommand
         {
             var origin = ss.GetDirectory(source);
             var result = ds.GetDirectory(destination);
-            return await copier.Copy(origin, result);
+            return await syncer.Copy(origin, result);
         }));
     }
 }

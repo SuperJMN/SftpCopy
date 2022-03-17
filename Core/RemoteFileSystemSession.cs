@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using CSharpFunctionalExtensions;
 using FileSystem;
+using Serilog;
 using SftpFileSystem;
 
 namespace Core;
@@ -10,10 +11,10 @@ class RemoteFileSystemSession : IFileSystemSession
     private readonly SftpFileSystem.FileSystem fs;
     private readonly IZafiroFileSystem inner;
 
-    private RemoteFileSystemSession(SftpFileSystem.FileSystem fs)
+    private RemoteFileSystemSession(SftpFileSystem.FileSystem fs, Maybe<ILogger> logger)
     {
         this.fs = fs;
-        inner = new ZafiroFileSystem(fs);
+        inner = new ZafiroFileSystem(fs, logger);
     }
 
     public void Dispose()
@@ -30,15 +31,17 @@ class RemoteFileSystemSession : IFileSystemSession
     {
         return inner.GetDirectory(path);
     }
-    
-    public static Task<Result<IFileSystemSession>> Create(DnsEndPoint endPoint, Credentials creds)
+
+    public Maybe<ILogger> Logger => inner.Logger;
+
+    public static Task<Result<IFileSystemSession>> Create(DnsEndPoint endPoint, Credentials creds, Maybe<ILogger> logger)
     {
         var host = endPoint.Host;
         var port = endPoint.Port;
 
         var result = SftpFileSystem.FileSystem
             .Connect(host, port, creds)
-            .Map(fs => (IFileSystemSession) new RemoteFileSystemSession(fs));
+            .Map(fs => (IFileSystemSession) new RemoteFileSystemSession(fs, logger));
 
         return Task.FromResult(result);
     }

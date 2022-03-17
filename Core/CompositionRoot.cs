@@ -2,6 +2,7 @@
 using Autofac;
 using CSharpFunctionalExtensions;
 using FileSystem;
+using Serilog;
 
 namespace Core;
 
@@ -11,8 +12,9 @@ public static class CompositionRoot
     {
         var cb = new ContainerBuilder();
         loginOptions.Execute(options => cb.RegisterInstance(options).AsSelf().SingleInstance());
+        cb.RegisterInstance(Log.Logger).As<ILogger>();
         cb.RegisterType<CopyCommand>().AsSelf();
-        cb.RegisterType<Copier>().As<ICopier>();
+        cb.RegisterType<Syncer>().As<ISyncer>();
         cb.RegisterType<ZafiroFileSystemComparer>().As<IZafiroFileSystemComparer>();
         cb.Register(context => CreateLoginStore(context.Resolve<IZafiroDirectory>()));
         cb.Register(context =>
@@ -20,11 +22,12 @@ public static class CompositionRoot
             var loginStore = context.Resolve<LoginStore>();
             var remoteLoginOptions = context.Resolve<RemoteLoginOptions>();
             var zafiroDirectory = context.Resolve<IZafiroDirectory>();
+            var logger = context.Resolve<ILogger>();
 
             return new FileSystemRoot(new Dictionary<string, Func<Task<Result<IFileSystemSession>>>>
             {
-                ["local"] = () => GetLocalSession(zafiroDirectory, remoteLoginOptions.EndPoint.Host),
-                ["remote"] = () => GetRemoteSession(loginStore, remoteLoginOptions)
+                ["local"] = () => GetLocalSession(zafiroDirectory, remoteLoginOptions.EndPoint.Host, logger),
+                ["remote"] = () => GetRemoteSession(loginStore, remoteLoginOptions, logger)
             });
         }).As<IFileSystemRoot>();
 
@@ -33,13 +36,14 @@ public static class CompositionRoot
         return cb.Build();
     }
 
-    private static Task<Result<IFileSystemSession>> GetLocalSession(IZafiroDirectory directory, string host)
+    private static Task<Result<IFileSystemSession>> GetLocalSession(IZafiroDirectory directory, string host,
+        ILogger logger)
     {
         var zafiroFile = directory.GetFile("hashes.dat").Value;
-        return Task.FromResult(Result.Success<IFileSystemSession>(new LocalFileSystemSession(host, zafiroFile)));
+        return Task.FromResult(Result.Success<IFileSystemSession>(new LocalFileSystemSession(host, zafiroFile, Maybe<ILogger>.From(logger))));
     }
 
-    private static async Task<Result<IFileSystemSession>> GetRemoteSession(LoginStore loginStore, RemoteLoginOptions remoteLoginOptions)
+    private static async Task<Result<IFileSystemSession>> GetRemoteSession(LoginStore loginStore, RemoteLoginOptions remoteLoginOptions, ILogger logger)
     {
         var dnsEndPoint = remoteLoginOptions.EndPoint;
         var host = dnsEndPoint.Host;
@@ -52,7 +56,7 @@ public static class CompositionRoot
             .Bind(cred =>
             {
                 var creds = new SftpFileSystem.Credentials(cred.Username, cred.Password);
-                return RemoteFileSystemSession.Create(dnsEndPoint, creds);
+                return RemoteFileSystemSession.Create(dnsEndPoint, creds, Maybe<ILogger>.From(logger));
             });
     }
 
@@ -64,7 +68,7 @@ public static class CompositionRoot
 
     private static IZafiroDirectory GetAppFolder()
     {
-        var zafiroFileSystem = new ZafiroFileSystem(new System.IO.Abstractions.FileSystem());
+        var zafiroFileSystem = new ZafiroFileSystem(new System.IO.Abstractions.FileSystem(), Maybe<ILogger>.None);
         var fs = new System.IO.Abstractions.FileSystem();
         var nativePath = Path.GetDirectoryName(Assembly.GetEntryAssembly()!.Location);
         var appFolderPath = fs.MakeZafiroPathFrom(nativePath!);
